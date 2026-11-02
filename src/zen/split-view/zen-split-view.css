@@ -264,3 +264,167 @@ zen-split-fake-tab {
   margin: var(--tab-margin-block);
   flex: 1;
 }
+
+
+/* ==========================================================================
+   HiFi Tile Decoration Bar
+   ========================================================================== */
+
+.browserSidebarContainer[is-zen-split="true"] {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.browserSidebarContainer[is-zen-split="true"] > .browserContainer,
+.browserSidebarContainer[is-zen-split="true"] > stack {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  width: 100% !important;
+}
+
+.hifi-tile-bar-container {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  height: 32px !important;
+  transform: none !important;
+  z-index: 100 !important;
+  pointer-events: all !important;
+  opacity: 0.94 !important;
+  padding: 3px 6px !important;
+  box-sizing: border-box !important;
+  transition: opacity 0.15s ease-out !important;
+}
+
+.browserSidebarContainer:hover .hifi-tile-bar-container,
+.browserSidebarContainer.deck-selected .hifi-tile-bar-container {
+  opacity: 1 !important;
+}
+
+.hifi-tile-bar {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  position: relative !important;
+  transform: none !important;
+  width: 100% !important;
+  height: 26px !important;
+  padding: 0 6px !important;
+  border-radius: 6px !important;
+  background-color: light-dark(rgba(242, 242, 247, 0.92), rgba(28, 28, 32, 0.92)) !important;
+  backdrop-filter: blur(20px) !important;
+  border: 1px solid light-dark(rgba(0, 0, 0, 0.1), rgba(255, 255, 255, 0.14)) !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12) !important;
+  gap: 8px !important;
+  box-sizing: border-box !important;
+}
+
+.browserSidebarContainer.deck-selected .hifi-tile-bar {
+  border-color: var(--zen-active-split-outline-color) !important;
+  box-shadow: 0 0 0 1px var(--zen-active-split-outline-color), 0 2px 6px rgba(0, 0, 0, 0.16) !important;
+}
+
+.hifi-tile-drag-btn {
+  cursor: grab !important;
+  opacity: 0.6 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  width: 18px !important;
+  height: 18px !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 4px !important;
+  color: currentColor !important;
+}
+
+.hifi-tile-drag-btn:hover {
+  opacity: 1 !important;
+  background-color: light-dark(rgba(0, 0, 0, 0.08), rgba(255, 255, 255, 0.15)) !important;
+}
+
+.hifi-tile-info {
+  display: flex !important;
+  align-items: center !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  gap: 6px !important;
+  overflow: hidden !important;
+}
+
+.hifi-tile-favicon {
+  width: 14px !important;
+  height: 14px !important;
+  flex-shrink: 0 !important;
+}
+
+.hifi-tile-title {
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  color: light-dark(#1c1c1f, #f2f2f7) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  user-select: none !important;
+}
+
+.hifi-tile-controls {
+  display: flex !important;
+  align-items: center !important;
+  gap: 2px !important;
+  flex-shrink: 0 !important;
+}
+
+.hifi-tile-btn {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 20px !important;
+  height: 20px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 4px !important;
+  background: transparent !important;
+  border: none !important;
+  color: light-dark(#48484a, #c7c7cc) !important;
+  cursor: pointer !important;
+  transition: background-color 0.12s ease, color 0.12s ease !important;
+}
+
+.hifi-tile-btn:hover {
+  background-color: light-dark(rgba(0, 0, 0, 0.08), rgba(255, 255, 255, 0.16)) !important;
+  color: light-dark(#000000, #ffffff) !important;
+}
+
+.hifi-tile-btn:active {
+  transform: scale(0.92) !important;
+}
+
+.hifi-tile-btn.sound-playing {
+  color: #007aff !important;
+}
+
+.hifi-tile-btn.is-muted {
+  color: #ff3b30 !important;
+}
+
+.hifi-tile-close-btn:hover {
+  background-color: rgba(255, 59, 48, 0.22) !important;
+  color: #ff3b30 !important;
+}
+
+/* Fullscreen Tile Mode */
+.browserSidebarContainer.hifi-tile-fullscreen {
+  inset: 0 !important;
+  z-index: 1000 !important;
+  margin: 0 !important;
+}
+
+#tabbrowser-tabpanels[zen-split-view="true"]:has(.browserSidebarContainer.hifi-tile-fullscreen) > .browserSidebarContainer:not(.hifi-tile-fullscreen) {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}

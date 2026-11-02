@@ -4,3 +4,4 @@
 
 *       content/browser/zen-styles/zen-split-view.css                           (../../zen/split-view/zen-split-view.css)
         content/browser/zen-components/ZenViewSplitter.mjs                      (../../zen/split-view/ZenViewSplitter.mjs)
+        content/browser/zen-components/HiFiTileBar.mjs                          (../../zen/split-view/HiFiTileBar.mjs)

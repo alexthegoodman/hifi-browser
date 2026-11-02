@@ -5,6 +5,7 @@
 /* eslint-disable consistent-return */
 
 import { nsZenDOMOperatedFeature } from "chrome://browser/content/zen-components/ZenCommonUtils.mjs";
+import { HiFiTileBar } from "chrome://browser/content/zen-components/HiFiTileBar.mjs";
 
 class nsSplitLeafNode {
   /**
@@ -1702,26 +1703,12 @@ class nsZenViewSplitter extends nsZenDOMOperatedFeature {
    * @private
    */
   _createHeader(container) {
-    const headerContainer = document.createElement("div");
-    headerContainer.classList.add("zen-view-splitter-header-container");
-    const header = document.createElement("div");
-    header.classList.add("zen-view-splitter-header");
-    const removeButton = document.createXULElement("toolbarbutton");
-    removeButton.classList.add("zen-tab-unsplit-button");
-    removeButton.addEventListener("click", event => {
-      this.removeTabFromSplit(event, container);
-    });
-    const rearrangeButton = document.createXULElement("toolbarbutton");
-    rearrangeButton.classList.add("zen-tab-rearrange-button");
-    header.appendChild(rearrangeButton);
-    header.appendChild(removeButton);
-    headerContainer.appendChild(header);
-    return headerContainer;
+    return HiFiTileBar.create(container, this);
   }
 
   _removeHeader(container) {
     const header = container.querySelector(
-      ".zen-view-splitter-header-container"
+      ".zen-view-splitter-header-container, .hifi-tile-bar-container"
     );
     if (header) {
       header.remove();
