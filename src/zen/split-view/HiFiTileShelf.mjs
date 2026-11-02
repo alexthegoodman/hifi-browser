@@ -231,10 +231,9 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
       e.preventDefault();
       this.closeTile(tab);
     });
-    overlay.appendChild(closeBtn);
-
     thumbContainer.appendChild(overlay);
     card.appendChild(thumbContainer);
+    card.appendChild(closeBtn);
 
     // Footer: Favicon + Title
     const footer = document.createElement("div");
@@ -430,15 +429,12 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
    * Safely closes a tile, detaching it from split groups and the browser.
    */
   closeTile(tab) {
-    if (!tab) return;
+    if (!tab || !window.gBrowser) return;
+    if (window.gBrowser.tabs.length <= 1) {
+      this.openNewTile();
+    }
     try {
-      if (window.gZenViewSplitter) {
-        window.gZenViewSplitter.removeTabFromGroup(tab, undefined, { forUnsplit: true });
-      }
-    } catch (e) {}
-
-    try {
-      window.gBrowser?.removeTab(tab);
+      window.gBrowser.removeTab(tab);
     } catch (e) {
       console.warn("Could not remove tab", e);
     }
@@ -576,14 +572,17 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
    */
   openNewTile(url = "about:newtab") {
     if (!window.gBrowser) return;
-    const newTab = window.gBrowser.addTrustedTab(url, {
-      inBackground: false,
-      triggeringPrincipal: Services.scriptsecuritymanager.getSystemPrincipal()
-    });
-    window.gBrowser.selectedTab = newTab;
-    setTimeout(() => {
-      this.bringTileIntoArrangement(newTab);
-    }, 150);
+    try {
+      const newTab = window.gBrowser.addTrustedTab(url, {
+        inBackground: false,
+      });
+      window.gBrowser.selectedTab = newTab;
+      setTimeout(() => {
+        this.bringTileIntoArrangement(newTab);
+      }, 100);
+    } catch (e) {
+      console.warn("HiFiTileShelf openNewTile error", e);
+    }
   }
 }
 

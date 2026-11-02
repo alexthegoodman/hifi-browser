@@ -296,11 +296,14 @@ class HiFiBookmarkDock extends nsZenDOMOperatedFeature {
     if (window.gHiFiTileShelf) {
       window.gHiFiTileShelf.openNewTile(url);
     } else if (window.gBrowser) {
-      const newTab = window.gBrowser.addTrustedTab(url, {
-        inBackground: false,
-        triggeringPrincipal: Services.scriptsecuritymanager.getSystemPrincipal()
-      });
-      window.gBrowser.selectedTab = newTab;
+      try {
+        const newTab = window.gBrowser.addTrustedTab(url, {
+          inBackground: false,
+        });
+        window.gBrowser.selectedTab = newTab;
+      } catch (e) {
+        console.warn("HiFiBookmarkDock open error", e);
+      }
     }
   }
 

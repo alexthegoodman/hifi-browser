@@ -608,20 +608,26 @@ zen-split-fake-tab {
 }
 
 .hifi-shelf-card-close {
-  width: 16px !important;
-  height: 16px !important;
+  position: absolute !important;
+  top: 4px !important;
+  right: 4px !important;
+  width: 18px !important;
+  height: 18px !important;
   border-radius: 50% !important;
-  background-color: rgba(0, 0, 0, 0.6) !important;
+  background-color: rgba(0, 0, 0, 0.65) !important;
   color: #fff !important;
   border: none !important;
   cursor: pointer !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  font-size: 9px !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
   line-height: 1 !important;
-  margin-left: auto !important;
+  z-index: 25 !important;
+  pointer-events: auto !important;
   opacity: 0.8 !important;
+  transition: all 0.12s ease !important;
 }
 
 .hifi-shelf-card-close:hover {
@@ -679,12 +685,24 @@ zen-split-fake-tab {
    ========================================================================== */
 
 /* Completely hide Zen vertical tabs toolbox, sidebars, and splitters */
-#navigator-toolbox,
+#navigator-toolbox {
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  border: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+#titlebar,
+#TabsToolbar,
+#tabbrowser-tabs,
+#zen-sidebar-top-buttons,
 #zen-sidebar-splitter,
 #sidebar-container,
 #vertical-tabs,
-#sidebar-launcher-splitter,
-#TabsToolbar {
+#sidebar-launcher-splitter {
   display: none !important;
   width: 0 !important;
   min-width: 0 !important;
