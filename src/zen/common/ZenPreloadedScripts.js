@@ -24,6 +24,7 @@
     "chrome://browser/content/zen-components/ZenPinnedTabManager.mjs",
     "resource:///modules/zen/ZenTabRenamer.mjs",
     "chrome://browser/content/zen-components/ZenViewSplitter.mjs",
+    "chrome://browser/content/zen-components/HiFiTileShelf.mjs",
     "chrome://browser/content/zen-components/ZenFolders.mjs",
     "chrome://browser/content/zen-components/ZenEmojiPicker.mjs",
     "chrome://browser/content/zen-components/ZenDownloadAnimation.mjs",

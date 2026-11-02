@@ -22,3 +22,9 @@
 
 - name: zen.splitView.drag-over-split-threshold
   value: 40
+
+- name: hifi.tiles.auto-tile
+  value: true
+
+- name: hifi.tiles.shelf.enabled
+  value: true
