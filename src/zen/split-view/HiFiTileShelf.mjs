@@ -5,8 +5,10 @@
 import { nsZenDOMOperatedFeature } from "chrome://browser/content/zen-components/ZenCommonUtils.mjs";
 
 /**
- * HiFi Tile Shelf & Auto-Tile Engine
- * Manages the bottom tile shelf dock, static tab snapshots, and automatic tiling.
+ * HiFi Tile Shelf & Viewport Manager
+ * Replaces the traditional tab bar with an intuitive bottom tile shelf
+ * featuring static page snapshots, clear fallback previews, prominent "New Tile" button,
+ * and reliable auto-tiling arrangements.
  */
 class HiFiTileShelf extends nsZenDOMOperatedFeature {
   #shelfElement = null;
@@ -14,7 +16,10 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
   #tabToCard = new WeakMap();
   #tabToSnapshotUrl = new WeakMap();
   #capturingTabs = new WeakSet();
-  #autoTileTimeout = null;
+  #autoArrangeTimeout = null;
+
+  // Current active layout: "single" | "vsep" | "hsep" | "grid"
+  currentLayout = "vsep";
 
   async init() {
     if (!Services.prefs.getBoolPref("hifi.tiles.shelf.enabled", true)) {
@@ -26,38 +31,25 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
     this.#createShelfDOM();
     this.#attachTabListeners();
 
-    // Initial render
-    this.#renderAllCards();
-
-    // Startup retry loop: captures tabs restored asynchronously by SessionStore
-    const checkStartup = () => {
+    // Render cards and initialize arrangement across startup lifecycle
+    const onReady = () => {
       this.#renderAllCards();
-      this.checkAutoTile();
+      this.autoArrange();
     };
 
-    setTimeout(checkStartup, 400);
-    setTimeout(checkStartup, 1000);
-    setTimeout(checkStartup, 2500);
+    onReady();
+    setTimeout(onReady, 350);
+    setTimeout(onReady, 1000);
+    setTimeout(onReady, 2500);
 
-    // Wait for SessionStore and delayed startup
     try {
       const { SessionStore } = ChromeUtils.importESModule(
         "resource:///modules/sessionstore/SessionStore.sys.mjs"
       );
-      SessionStore.promiseAllWindowsRestored?.then(() => {
-        checkStartup();
-      });
-    } catch (e) {
-      // Fallback timer already active
-    }
+      SessionStore.promiseAllWindowsRestored?.then(onReady);
+    } catch (e) {}
 
-    window.addEventListener(
-      "load",
-      () => {
-        checkStartup();
-      },
-      { once: true }
-    );
+    window.addEventListener("load", onReady, { once: true });
   }
 
   #createShelfDOM() {
@@ -72,7 +64,7 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
     shelf.id = "hifi-tile-shelf";
     shelf.classList.add("hifi-tile-shelf");
 
-    // Brand / Mode badge
+    // 1. Brand / Mode Badge
     const brand = document.createElement("div");
     brand.classList.add("hifi-shelf-brand");
     const badge = document.createElement("span");
@@ -82,32 +74,27 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
     brand.appendChild(badge);
     shelf.appendChild(brand);
 
-    // Scrollable Cards Track
+    // 2. Prominent "+ New Tile" Action Button (at the start of shelf)
+    const newBtn = document.createElement("button");
+    newBtn.id = "hifi-shelf-new-tile-btn";
+    newBtn.classList.add("hifi-shelf-new-tile-btn");
+    newBtn.setAttribute("type", "button");
+    newBtn.title = "Open New Tile";
+    newBtn.innerHTML = `
+      <span class="hifi-new-tile-plus">+</span>
+      <span class="hifi-new-tile-text">New Tile</span>
+    `;
+    newBtn.addEventListener("click", () => {
+      this.openNewTile();
+    });
+    shelf.appendChild(newBtn);
+
+    // 3. Horizontal Scrollable Tile Cards Track
     const track = document.createElement("div");
     track.id = "hifi-shelf-track";
     track.classList.add("hifi-shelf-track");
     shelf.appendChild(track);
     this.#trackElement = track;
-
-    // Actions (New Tile + Button)
-    const actions = document.createElement("div");
-    actions.classList.add("hifi-shelf-actions");
-
-    const newBtn = document.createElement("button");
-    newBtn.id = "hifi-shelf-new-tile-btn";
-    newBtn.classList.add("hifi-shelf-action-btn");
-    newBtn.title = "Open New Tile";
-    newBtn.innerHTML = `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="13" height="13" fill="currentColor">
-        <path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2z"/>
-      </svg>
-    `;
-    newBtn.addEventListener("click", () => {
-      this.#openNewTile();
-    });
-    actions.appendChild(newBtn);
-
-    shelf.appendChild(actions);
 
     parent.appendChild(shelf);
     this.#shelfElement = shelf;
@@ -118,41 +105,31 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
     if (!tabContainer) return;
 
     tabContainer.addEventListener("TabOpen", event => {
-      this.#onTabOpen(event.target);
+      const tab = event.target;
+      this.#createCardForTab(tab);
+      this.#triggerAutoArrangeDebounced();
     });
 
     tabContainer.addEventListener("TabClose", event => {
-      this.#onTabClose(event.target);
+      const tab = event.target;
+      this.#onTabClosed(tab);
     });
 
     tabContainer.addEventListener("TabSelect", () => {
-      this.#updateCardStates();
+      this.updateCardStates();
       const currentTab = window.gBrowser?.selectedTab;
       if (currentTab) {
-        setTimeout(() => this.#captureSnapshot(currentTab), 300);
+        setTimeout(() => this.captureSnapshot(currentTab), 400);
       }
     });
 
     tabContainer.addEventListener("TabAttrModified", event => {
-      this.#updateCard(event.target);
-    });
-
-    // Listen to minimize action from HiFiTileBar
-    window.addEventListener("hifi-tile-minimized", event => {
-      const tab = event.detail?.tab;
-      if (tab) {
-        this.#captureSnapshot(tab);
-        this.#updateCardStates();
-      }
+      const tab = event.target;
+      this.#updateCardMetadata(tab);
     });
   }
 
-  #onTabOpen(tab) {
-    this.#createCardForTab(tab);
-    this.#triggerAutoTileDebounced();
-  }
-
-  #onTabClose(tab) {
+  #onTabClosed(tab) {
     const card = this.#tabToCard.get(tab);
     if (card) {
       card.remove();
@@ -165,7 +142,19 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
       } catch (e) {}
       this.#tabToSnapshotUrl.delete(tab);
     }
-    this.#triggerAutoTileDebounced();
+
+    // If remaining tabs are fewer than needed, auto arrange
+    setTimeout(() => {
+      const remaining = window.gBrowser ? window.gBrowser.visibleTabs.filter(t => !t.hidden) : [];
+      if (remaining.length === 0) {
+        this.openNewTile();
+      } else if (remaining.length === 1) {
+        window.gZenViewSplitter?.unsplitCurrentView();
+      } else {
+        this.autoArrange();
+      }
+      this.updateCardStates();
+    }, 150);
   }
 
   #renderAllCards() {
@@ -175,7 +164,7 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
         this.#createCardForTab(tab);
       }
     }
-    this.#updateCardStates();
+    this.updateCardStates();
   }
 
   #createCardForTab(tab) {
@@ -190,9 +179,10 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
     const thumbContainer = document.createElement("div");
     thumbContainer.classList.add("hifi-shelf-card-thumb-container");
 
+    // 1. Snapshot Image (displayed when captured)
     const thumbImg = document.createElement("img");
     thumbImg.classList.add("hifi-shelf-card-thumb");
-    thumbImg.setAttribute("alt", "Tile Snapshot");
+    thumbImg.alt = "Tile Snapshot";
     const existingSnap = this.#tabToSnapshotUrl.get(tab);
     if (existingSnap) {
       thumbImg.src = existingSnap;
@@ -202,7 +192,27 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
     }
     thumbContainer.appendChild(thumbImg);
 
-    // Overlay (Status, Minimized Badge, Close)
+    // 2. Elegant Fallback Preview (visible while snapshot loads or when snapshot is empty)
+    const fallback = document.createElement("div");
+    fallback.classList.add("hifi-shelf-card-fallback");
+    if (existingSnap) {
+      fallback.style.display = "none";
+    }
+
+    const fallbackIcon = document.createElement("img");
+    fallbackIcon.classList.add("hifi-shelf-fallback-icon");
+    const fav = tab.getAttribute("image");
+    fallbackIcon.src = fav || "chrome://global/skin/icons/defaultFavicon.svg";
+    fallback.appendChild(fallbackIcon);
+
+    const fallbackDomain = document.createElement("span");
+    fallbackDomain.classList.add("hifi-shelf-fallback-domain");
+    fallbackDomain.textContent = this.#getDomainFromTab(tab);
+    fallback.appendChild(fallbackDomain);
+
+    thumbContainer.appendChild(fallback);
+
+    // Overlay (Minimized Badge + Close Button)
     const overlay = document.createElement("div");
     overlay.classList.add("hifi-shelf-card-overlay");
 
@@ -213,29 +223,26 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
 
     const closeBtn = document.createElement("button");
     closeBtn.classList.add("hifi-shelf-card-close");
+    closeBtn.setAttribute("type", "button");
     closeBtn.textContent = "✕";
-    closeBtn.title = "Close tile";
+    closeBtn.title = "Close Tile";
     closeBtn.addEventListener("click", e => {
       e.stopPropagation();
-      window.gBrowser?.removeTab(tab);
+      e.preventDefault();
+      this.closeTile(tab);
     });
     overlay.appendChild(closeBtn);
 
     thumbContainer.appendChild(overlay);
     card.appendChild(thumbContainer);
 
-    // Meta Footer (Favicon + Title)
+    // Footer: Favicon + Title
     const footer = document.createElement("div");
     footer.classList.add("hifi-shelf-card-footer");
 
     const icon = document.createElement("img");
     icon.classList.add("hifi-shelf-card-icon");
-    const favSrc = tab.getAttribute("image");
-    if (favSrc) {
-      icon.setAttribute("src", favSrc);
-    } else {
-      icon.src = "chrome://global/skin/icons/defaultFavicon.svg";
-    }
+    icon.src = fav || "chrome://global/skin/icons/defaultFavicon.svg";
     footer.appendChild(icon);
 
     const title = document.createElement("span");
@@ -245,28 +252,28 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
 
     card.appendChild(footer);
 
-    // Click handler: select or restore tile
+    // Click handler: Bring tile into viewport arrangement
     card.addEventListener("click", () => {
-      this.#onCardClick(tab);
+      this.bringTileIntoArrangement(tab);
     });
 
     this.#trackElement.appendChild(card);
     this.#tabToCard.set(tab, card);
 
-    // Capture initial snapshot
+    // Schedule initial snapshot
     if (tab.linkedBrowser) {
-      setTimeout(() => this.#captureSnapshot(tab), 400);
+      setTimeout(() => this.captureSnapshot(tab), 400);
       tab.linkedBrowser.addEventListener(
         "load",
         () => {
-          setTimeout(() => this.#captureSnapshot(tab), 400);
+          setTimeout(() => this.captureSnapshot(tab), 500);
         },
         { once: true }
       );
     }
   }
 
-  #updateCard(tab) {
+  #updateCardMetadata(tab) {
     const card = this.#tabToCard.get(tab);
     if (!card) {
       this.#createCardForTab(tab);
@@ -280,20 +287,37 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
     }
 
     const iconEl = card.querySelector(".hifi-shelf-card-icon");
-    if (iconEl) {
-      const fav = tab.getAttribute("image");
-      if (fav) {
-        iconEl.setAttribute("src", fav);
-        iconEl.style.display = "";
-      }
+    const fav = tab.getAttribute("image");
+    if (iconEl && fav) {
+      iconEl.src = fav;
     }
 
-    this.#updateCardStates();
+    const fallbackIcon = card.querySelector(".hifi-shelf-fallback-icon");
+    if (fallbackIcon && fav) {
+      fallbackIcon.src = fav;
+    }
+
+    const fallbackDomain = card.querySelector(".hifi-shelf-fallback-domain");
+    if (fallbackDomain) {
+      fallbackDomain.textContent = this.#getDomainFromTab(tab);
+    }
+
+    this.updateCardStates();
   }
 
-  #updateCardStates() {
+  #getDomainFromTab(tab) {
+    try {
+      const uri = tab.linkedBrowser?.currentURI;
+      if (uri?.host) return uri.host;
+      if (uri?.spec) return uri.spec.replace(/^https?:\/\//, "").split("/")[0];
+    } catch (e) {}
+    return tab.label || "New Tile";
+  }
+
+  updateCardStates() {
     if (!window.gBrowser) return;
     const selectedTab = window.gBrowser.selectedTab;
+    const activeTiles = new Set(this.getActiveSplitTabs());
 
     for (const tab of window.gBrowser.tabs) {
       const card = this.#tabToCard.get(tab);
@@ -301,73 +325,221 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
 
       const isSelected = tab === selectedTab;
       const isMinimized = tab.getAttribute("hifi-minimized") === "true";
-      const isSplit = !!tab.splitView;
+      const isInArrangement = activeTiles.has(tab);
       const isPlaying = !!tab.soundPlaying;
       const isMuted = !!tab.muted;
 
       card.classList.toggle("is-selected", isSelected);
       card.classList.toggle("is-minimized", isMinimized);
-      card.classList.toggle("is-split", isSplit);
+      card.classList.toggle("is-active-tile", isInArrangement);
       card.classList.toggle("sound-playing", isPlaying);
       card.classList.toggle("is-muted", isMuted);
     }
   }
 
-  #onCardClick(tab) {
-    const isMinimized = tab.getAttribute("hifi-minimized") === "true";
-    if (isMinimized) {
-      tab.removeAttribute("hifi-minimized");
-      if (window.gZenViewSplitter) {
-        const visibleTabs = window.gBrowser.visibleTabs.filter(
-          t => !t.hidden && !t.getAttribute("hifi-minimized")
-        );
-        if (visibleTabs.length >= 2) {
-          window.gZenViewSplitter.splitTabs(visibleTabs.slice(0, 4), "grid");
-        } else {
-          window.gBrowser.selectedTab = tab;
-        }
-      } else {
-        window.gBrowser.selectedTab = tab;
+  /**
+   * Returns the list of tabs currently rendered in the split-view arrangement.
+   */
+  getActiveSplitTabs() {
+    if (window.gZenViewSplitter?.currentView >= 0) {
+      const group = window.gZenViewSplitter._data[window.gZenViewSplitter.currentView];
+      if (group && Array.isArray(group.tabs)) {
+        return group.tabs.filter(t => !t.closing && t.isConnected);
       }
-    } else {
-      window.gBrowser.selectedTab = tab;
     }
-    this.#updateCardStates();
+    const splitTabs = window.gBrowser
+      ? window.gBrowser.tabs.filter(t => t.splitView && !t.closing)
+      : [];
+    if (splitTabs.length > 0) return splitTabs;
+    return window.gBrowser?.selectedTab ? [window.gBrowser.selectedTab] : [];
   }
 
-  async #captureSnapshot(tab) {
+  /**
+   * Brings a given tile into the active viewport arrangement.
+   * If already on screen, focuses it. If not, swaps/adds it into the arrangement.
+   */
+  bringTileIntoArrangement(targetTab) {
+    if (!targetTab || !window.gBrowser) return;
+
+    // Remove minimized badge if set
+    targetTab.removeAttribute("hifi-minimized");
+
+    if (this.currentLayout === "single" || !window.gZenViewSplitter) {
+      window.gZenViewSplitter?.unsplitCurrentView();
+      window.gBrowser.selectedTab = targetTab;
+      this.updateCardStates();
+      return;
+    }
+
+    const active = this.getActiveSplitTabs();
+    if (active.includes(targetTab)) {
+      // Tile is already displayed on screen; simply focus it
+      window.gBrowser.selectedTab = targetTab;
+      this.updateCardStates();
+      return;
+    }
+
+    const maxTiles = this.currentLayout === "grid" ? 4 : 2;
+
+    if (active.length < maxTiles) {
+      // Slot available: add directly to split
+      window.gZenViewSplitter.splitTabs([...active, targetTab], this.currentLayout);
+    } else {
+      // Full arrangement: replace the currently focused tile (or first slot)
+      const currentSelected = window.gBrowser.selectedTab;
+      let newActive = active.map(t => (t === currentSelected ? targetTab : t));
+      if (!newActive.includes(targetTab)) {
+        newActive[newActive.length - 1] = targetTab;
+      }
+      window.gZenViewSplitter.splitTabs(newActive, this.currentLayout);
+    }
+
+    window.gBrowser.selectedTab = targetTab;
+    this.updateCardStates();
+  }
+
+  /**
+   * Sets the arrangement layout explicitly: "single" | "vsep" | "hsep" | "grid"
+   */
+  setLayout(layoutType) {
+    this.currentLayout = layoutType === "unsplit" ? "single" : layoutType;
+
+    if (this.currentLayout === "single") {
+      window.gZenViewSplitter?.unsplitCurrentView();
+      this.updateCardStates();
+      return;
+    }
+
+    const visible = (window.gBrowser?.visibleTabs || []).filter(
+      t => !t.hidden && t.getAttribute("hifi-minimized") !== "true"
+    );
+
+    const targetCount = this.currentLayout === "grid" ? 4 : 2;
+    const tabsToSplit = visible.slice(0, targetCount);
+
+    if (tabsToSplit.length >= 2) {
+      window.gZenViewSplitter?.splitTabs(tabsToSplit, this.currentLayout);
+    } else if (tabsToSplit.length === 1) {
+      window.gZenViewSplitter?.unsplitCurrentView();
+      window.gBrowser.selectedTab = tabsToSplit[0];
+    }
+    this.updateCardStates();
+  }
+
+  /**
+   * Safely closes a tile, detaching it from split groups and the browser.
+   */
+  closeTile(tab) {
+    if (!tab) return;
+    try {
+      if (window.gZenViewSplitter) {
+        window.gZenViewSplitter.removeTabFromGroup(tab, undefined, { forUnsplit: true });
+      }
+    } catch (e) {}
+
+    try {
+      window.gBrowser?.removeTab(tab);
+    } catch (e) {
+      console.warn("Could not remove tab", e);
+    }
+  }
+
+  /**
+   * Minimizes a tile into the shelf.
+   */
+  minimizeTile(tab) {
+    if (!tab) return;
+    tab.setAttribute("hifi-minimized", "true");
+    try {
+      if (window.gZenViewSplitter) {
+        window.gZenViewSplitter.removeTabFromGroup(tab, undefined, { forUnsplit: true });
+      }
+    } catch (e) {}
+
+    // Refill arrangement slot if other visible tabs exist
+    const available = (window.gBrowser?.visibleTabs || []).filter(
+      t => !t.hidden && t !== tab && t.getAttribute("hifi-minimized") !== "true"
+    );
+
+    const targetCount = this.currentLayout === "grid" ? 4 : 2;
+    if (available.length >= 2 && this.currentLayout !== "single") {
+      window.gZenViewSplitter?.splitTabs(available.slice(0, targetCount), this.currentLayout);
+    } else if (available.length === 1) {
+      window.gZenViewSplitter?.unsplitCurrentView();
+      window.gBrowser.selectedTab = available[0];
+    }
+    this.updateCardStates();
+  }
+
+  #triggerAutoArrangeDebounced() {
+    clearTimeout(this.#autoArrangeTimeout);
+    this.#autoArrangeTimeout = setTimeout(() => {
+      this.autoArrange();
+    }, 200);
+  }
+
+  /**
+   * Automatically establishes the split arrangement if 2+ tabs are open.
+   */
+  autoArrange() {
+    if (!Services.prefs.getBoolPref("hifi.tiles.auto-tile", true)) return;
+    if (!window.gZenViewSplitter || !window.gBrowser) return;
+
+    if (this.currentLayout === "single") return;
+
+    const visibleTabs = window.gBrowser.visibleTabs.filter(
+      t => !t.hidden && t.getAttribute("hifi-minimized") !== "true"
+    );
+
+    if (visibleTabs.length < 2) return;
+
+    const activeSplit = this.getActiveSplitTabs();
+    if (activeSplit.length < 2) {
+      const targetCount = this.currentLayout === "grid" ? 4 : 2;
+      window.gZenViewSplitter.splitTabs(
+        visibleTabs.slice(0, targetCount),
+        this.currentLayout
+      );
+    }
+    this.updateCardStates();
+  }
+
+  /**
+   * Captures a static page snapshot for the tile card preview.
+   */
+  async captureSnapshot(tab) {
     if (!tab || tab.closing || this.#capturingTabs.has(tab)) return;
     const browser = tab.linkedBrowser;
     if (!browser) return;
 
     this.#capturingTabs.add(tab);
     try {
-      const global = browser.browsingContext?.currentWindowGlobal;
-      if (!global || !global.drawSnapshot) return;
+      let image = null;
 
-      const rect = browser.getBoundingClientRect();
-      const w = Math.max(120, Math.round(rect.width || 800));
-      const h = Math.max(80, Math.round(rect.height || 600));
+      // 1. Direct browser.drawSnapshot (standard Gecko API)
+      if (typeof browser.drawSnapshot === "function") {
+        image = await browser.drawSnapshot(0, 0, 0, 0, 0.22, "white", true);
+      }
 
-      const targetThumbWidth = 220;
-      const scale = Math.min(1.0, targetThumbWidth / w);
+      // 2. BrowsingContext WindowGlobalParent fallback
+      if (!image && browser.browsingContext?.currentWindowGlobal?.drawSnapshot) {
+        image = await browser.browsingContext.currentWindowGlobal.drawSnapshot(
+          null,
+          0.22,
+          "white"
+        );
+      }
 
-      const imageBitmap = await global.drawSnapshot(
-        new DOMRect(0, 0, w, h),
-        scale,
-        "white"
-      );
+      if (!image) return;
 
-      if (!imageBitmap) return;
-
-      const canvas = new OffscreenCanvas(imageBitmap.width, imageBitmap.height);
+      const canvas = new OffscreenCanvas(image.width, image.height);
       const ctx = canvas.getContext("2d");
-      ctx.drawImage(imageBitmap, 0, 0);
-      imageBitmap.close();
+      ctx.drawImage(image, 0, 0);
+      image.close();
 
       const blob = await canvas.convertToBlob({
         type: "image/webp",
-        quality: 0.82
+        quality: 0.85
       });
 
       const oldUrl = this.#tabToSnapshotUrl.get(tab);
@@ -383,67 +555,35 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
       const card = this.#tabToCard.get(tab);
       if (card) {
         const thumbImg = card.querySelector(".hifi-shelf-card-thumb");
+        const fallback = card.querySelector(".hifi-shelf-card-fallback");
         if (thumbImg) {
           thumbImg.src = newUrl;
           thumbImg.style.display = "block";
         }
+        if (fallback) {
+          fallback.style.display = "none";
+        }
       }
     } catch (e) {
-      // Ignore background snapshot warnings
+      // Fallback stays visible
     } finally {
       this.#capturingTabs.delete(tab);
     }
   }
 
-  #triggerAutoTileDebounced() {
-    clearTimeout(this.#autoTileTimeout);
-    this.#autoTileTimeout = setTimeout(() => {
-      this.checkAutoTile();
-    }, 200);
-  }
-
-  checkAutoTile() {
-    if (!Services.prefs.getBoolPref("hifi.tiles.auto-tile", true)) {
-      return;
-    }
-    if (!window.gZenViewSplitter || !window.gBrowser) return;
-
-    const visibleTabs = window.gBrowser.visibleTabs.filter(
-      t => !t.hidden && !t.getAttribute("hifi-minimized")
-    );
-
-    if (visibleTabs.length < 2) return;
-
-    const anySplit = visibleTabs.some(t => t.splitView);
-    if (!anySplit) {
-      // Auto-split all visible tabs side-by-side or grid
-      window.gZenViewSplitter.splitTabs(
-        visibleTabs.slice(0, 4),
-        visibleTabs.length === 2 ? "vsep" : "grid"
-      );
-    } else if (window.gZenViewSplitter.currentView >= 0) {
-      const currentGroup = window.gZenViewSplitter._data[window.gZenViewSplitter.currentView];
-      if (currentGroup && currentGroup.tabs.length < 4) {
-        const unsplitTab = visibleTabs.find(t => !currentGroup.tabs.includes(t));
-        if (unsplitTab) {
-          window.gZenViewSplitter.splitTabs(
-            [...currentGroup.tabs, unsplitTab],
-            currentGroup.tabs.length >= 2 ? "grid" : "vsep"
-          );
-        }
-      }
-    }
-    this.#updateCardStates();
-  }
-
-  #openNewTile() {
+  /**
+   * Opens a new tile tab and brings it into the active arrangement.
+   */
+  openNewTile(url = "about:newtab") {
     if (!window.gBrowser) return;
-    const newTab = window.gBrowser.addTrustedTab("about:newtab", {
+    const newTab = window.gBrowser.addTrustedTab(url, {
       inBackground: false,
       triggeringPrincipal: Services.scriptsecuritymanager.getSystemPrincipal()
     });
     window.gBrowser.selectedTab = newTab;
-    this.#triggerAutoTileDebounced();
+    setTimeout(() => {
+      this.bringTileIntoArrangement(newTab);
+    }, 150);
   }
 }
 

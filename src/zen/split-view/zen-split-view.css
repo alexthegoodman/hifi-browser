@@ -579,7 +579,12 @@ zen-split-fake-tab {
   box-sizing: border-box !important;
   background: linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 50%) !important;
   opacity: 0 !important;
+  pointer-events: none !important;
   transition: opacity 0.12s ease !important;
+}
+
+.hifi-shelf-card-overlay > * {
+  pointer-events: auto !important;
 }
 
 .hifi-shelf-card:hover .hifi-shelf-card-overlay,
@@ -673,15 +678,19 @@ zen-split-fake-tab {
    Ubuntu-Style Bookmark Sidebar & Layout Dropdown
    ========================================================================== */
 
-/* Completely hide legacy tab sidebar and vertical tabs */
+/* Completely hide Zen vertical tabs toolbox, sidebars, and splitters */
+#navigator-toolbox,
+#zen-sidebar-splitter,
 #sidebar-container,
 #vertical-tabs,
-#sidebar-launcher-splitter {
+#sidebar-launcher-splitter,
+#TabsToolbar {
   display: none !important;
   width: 0 !important;
   min-width: 0 !important;
   max-width: 0 !important;
   visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 #hifi-ubuntu-dock {
@@ -849,4 +858,74 @@ zen-split-fake-tab {
 .hifi-dock-item svg {
   display: block !important;
   pointer-events: none !important;
+}
+
+/* Prominent New Tile Button */
+.hifi-shelf-new-tile-btn {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  height: 68px !important;
+  min-width: 96px !important;
+  padding: 0 10px !important;
+  border-radius: 8px !important;
+  background-color: light-dark(rgba(0, 0, 0, 0.04), rgba(255, 255, 255, 0.08)) !important;
+  border: 1px dashed light-dark(rgba(0, 0, 0, 0.22), rgba(255, 255, 255, 0.28)) !important;
+  color: light-dark(#1c1c1f, #f2f2f7) !important;
+  cursor: pointer !important;
+  flex-shrink: 0 !important;
+  transition: all 0.15s ease !important;
+  font-weight: 600 !important;
+  font-size: 11px !important;
+}
+
+.hifi-shelf-new-tile-btn:hover {
+  background-color: light-dark(rgba(0, 122, 255, 0.12), rgba(10, 132, 255, 0.22)) !important;
+  border-color: #007aff !important;
+  color: #007aff !important;
+  transform: translateY(-1px) !important;
+}
+
+.hifi-new-tile-plus {
+  font-size: 16px !important;
+  line-height: 1 !important;
+}
+
+/* Fallback Preview Styling */
+.hifi-shelf-card-fallback {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  height: 100% !important;
+  gap: 3px !important;
+  padding: 4px !important;
+  box-sizing: border-box !important;
+  background: light-dark(linear-gradient(135deg, #f0f0f5 0%, #e2e2e8 100%), linear-gradient(135deg, #2c2c34 0%, #1c1c22 100%)) !important;
+}
+
+.hifi-shelf-fallback-icon {
+  width: 18px !important;
+  height: 18px !important;
+  border-radius: 3px !important;
+}
+
+.hifi-shelf-fallback-domain {
+  font-size: 8.5px !important;
+  color: light-dark(#6e6e73, #8e8e93) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 95% !important;
+}
+
+.hifi-shelf-card.is-active-tile {
+  border-color: light-dark(rgba(0, 122, 255, 0.6), rgba(10, 132, 255, 0.6)) !important;
+}
+
+.hifi-shelf-card.is-selected {
+  border-color: #007aff !important;
+  box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.5), 0 3px 10px rgba(0, 0, 0, 0.2) !important;
 }

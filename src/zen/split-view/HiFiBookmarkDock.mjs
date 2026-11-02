@@ -44,7 +44,7 @@ class HiFiBookmarkDock extends nsZenDOMOperatedFeature {
 
     const homeBtn = document.createElement("button");
     homeBtn.classList.add("hifi-dock-item", "hifi-dock-logo-btn");
-    homeBtn.title = "HiFi Browser";
+    homeBtn.title = "HiFi Browser - New Tile";
     homeBtn.innerHTML = `
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
         <circle cx="12" cy="12" r="10" fill="#e95420"/>
@@ -174,19 +174,17 @@ class HiFiBookmarkDock extends nsZenDOMOperatedFeature {
   }
 
   #applyLayout(gridType) {
-    if (!window.gZenViewSplitter || !window.gBrowser) return;
-
-    if (gridType === "unsplit") {
-      window.gZenViewSplitter.unsplitCurrentView();
-      return;
-    }
-
-    const visibleTabs = window.gBrowser.visibleTabs.filter(
-      t => !t.hidden && !t.getAttribute("hifi-minimized")
-    );
-
-    if (visibleTabs.length >= 2) {
-      window.gZenViewSplitter.splitTabs(visibleTabs.slice(0, 4), gridType);
+    if (window.gHiFiTileShelf) {
+      window.gHiFiTileShelf.setLayout(gridType);
+    } else if (window.gZenViewSplitter) {
+      if (gridType === "unsplit") {
+        window.gZenViewSplitter.unsplitCurrentView();
+      } else {
+        const visibleTabs = window.gBrowser?.visibleTabs.filter(t => !t.hidden) || [];
+        if (visibleTabs.length >= 2) {
+          window.gZenViewSplitter.splitTabs(visibleTabs.slice(0, 4), gridType);
+        }
+      }
     }
   }
 
@@ -274,7 +272,7 @@ class HiFiBookmarkDock extends nsZenDOMOperatedFeature {
   }
 
   #onBookmarkClick(url) {
-    // If URL is already open in an existing tab, select it
+    // If URL is already open in an existing tab, bring it to view
     const existingTab = window.gBrowser?.tabs.find(t => {
       try {
         return t.linkedBrowser?.currentURI?.spec === url;
@@ -284,26 +282,26 @@ class HiFiBookmarkDock extends nsZenDOMOperatedFeature {
     });
 
     if (existingTab) {
-      window.gBrowser.selectedTab = existingTab;
+      if (window.gHiFiTileShelf) {
+        window.gHiFiTileShelf.bringTileIntoArrangement(existingTab);
+      } else {
+        window.gBrowser.selectedTab = existingTab;
+      }
     } else {
       this.#openURLInNewTile(url);
     }
   }
 
   #openURLInNewTile(url) {
-    if (!window.gBrowser) return;
-    const newTab = window.gBrowser.addTrustedTab(url, {
-      inBackground: false,
-      triggeringPrincipal: Services.scriptsecuritymanager.getSystemPrincipal()
-    });
-    window.gBrowser.selectedTab = newTab;
-
-    // Auto-tile into workspace if auto-tile is enabled
-    setTimeout(() => {
-      if (window.gHiFiTileShelf) {
-        window.gHiFiTileShelf.checkAutoTile();
-      }
-    }, 250);
+    if (window.gHiFiTileShelf) {
+      window.gHiFiTileShelf.openNewTile(url);
+    } else if (window.gBrowser) {
+      const newTab = window.gBrowser.addTrustedTab(url, {
+        inBackground: false,
+        triggeringPrincipal: Services.scriptsecuritymanager.getSystemPrincipal()
+      });
+      window.gBrowser.selectedTab = newTab;
+    }
   }
 
   #addCurrentPageBookmark() {

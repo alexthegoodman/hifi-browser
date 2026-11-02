@@ -165,15 +165,11 @@ export class HiFiTileBar {
       event.stopPropagation();
       const currentTab = getTab();
       if (currentTab) {
-        currentTab.setAttribute("hifi-minimized", "true");
-        window.dispatchEvent(
-          new CustomEvent("hifi-tile-minimized", {
-            bubbles: true,
-            detail: { tab: currentTab }
-          })
-        );
-        if (splitter?.removeTabFromSplit) {
-          splitter.removeTabFromSplit(event, container);
+        if (window.gHiFiTileShelf) {
+          window.gHiFiTileShelf.minimizeTile(currentTab);
+        } else {
+          currentTab.setAttribute("hifi-minimized", "true");
+          splitter?.removeTabFromSplit?.(event, container);
         }
       }
     });
@@ -194,9 +190,12 @@ export class HiFiTileBar {
       event.stopPropagation();
       const currentTab = getTab();
       if (currentTab) {
-        window.gBrowser?.removeTab(currentTab);
-      } else if (splitter?.removeTabFromSplit) {
-        splitter.removeTabFromSplit(event, container);
+        if (window.gHiFiTileShelf) {
+          window.gHiFiTileShelf.closeTile(currentTab);
+        } else {
+          splitter?.removeTabFromSplit?.(event, container);
+          window.gBrowser?.removeTab(currentTab);
+        }
       }
     });
 
