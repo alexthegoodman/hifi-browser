@@ -5,9 +5,8 @@
 import { nsZenDOMOperatedFeature } from "chrome://browser/content/zen-components/ZenCommonUtils.mjs";
 
 /**
- * HiFi Tile Shelf & Snapshot Manager
- * Provides a lightweight bottom dock for open/minimized tiles with static page snapshots,
- * and enables auto-tiling by default.
+ * HiFi Tile Shelf & Auto-Tile Engine
+ * Manages the bottom tile shelf dock, static tab snapshots, and automatic tiling.
  */
 class HiFiTileShelf extends nsZenDOMOperatedFeature {
   #shelfElement = null;
@@ -27,14 +26,35 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
     this.#createShelfDOM();
     this.#attachTabListeners();
 
-    // Initial render of existing tabs
+    // Initial render
     this.#renderAllCards();
 
-    // Auto-tile on startup if enabled
+    // Startup retry loop: captures tabs restored asynchronously by SessionStore
+    const checkStartup = () => {
+      this.#renderAllCards();
+      this.checkAutoTile();
+    };
+
+    setTimeout(checkStartup, 400);
+    setTimeout(checkStartup, 1000);
+    setTimeout(checkStartup, 2500);
+
+    // Wait for SessionStore and delayed startup
+    try {
+      const { SessionStore } = ChromeUtils.importESModule(
+        "resource:///modules/sessionstore/SessionStore.sys.mjs"
+      );
+      SessionStore.promiseAllWindowsRestored?.then(() => {
+        checkStartup();
+      });
+    } catch (e) {
+      // Fallback timer already active
+    }
+
     window.addEventListener(
       "load",
       () => {
-        setTimeout(() => this.#checkAutoTile(), 600);
+        checkStartup();
       },
       { once: true }
     );
@@ -45,6 +65,8 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
       document.getElementById("zen-appcontent-wrapper") ||
       document.getElementById("browser");
     if (!parent) return;
+
+    document.getElementById("hifi-tile-shelf")?.remove();
 
     const shelf = document.createElement("div");
     shelf.id = "hifi-tile-shelf";
@@ -67,15 +89,19 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
     shelf.appendChild(track);
     this.#trackElement = track;
 
-    // Actions (New Tile +)
+    // Actions (New Tile + Button)
     const actions = document.createElement("div");
     actions.classList.add("hifi-shelf-actions");
 
-    const newBtn = document.createXULElement("toolbarbutton");
+    const newBtn = document.createElement("button");
     newBtn.id = "hifi-shelf-new-tile-btn";
     newBtn.classList.add("hifi-shelf-action-btn");
-    newBtn.setAttribute("tooltiptext", "Open New Tile");
-    newBtn.innerHTML = `<svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor"><path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2z"/></svg>`;
+    newBtn.title = "Open New Tile";
+    newBtn.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="13" height="13" fill="currentColor">
+        <path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2z"/>
+      </svg>
+    `;
     newBtn.addEventListener("click", () => {
       this.#openNewTile();
     });
@@ -103,7 +129,7 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
       this.#updateCardStates();
       const currentTab = window.gBrowser?.selectedTab;
       if (currentTab) {
-        setTimeout(() => this.#captureSnapshot(currentTab), 350);
+        setTimeout(() => this.#captureSnapshot(currentTab), 300);
       }
     });
 
@@ -111,7 +137,7 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
       this.#updateCard(event.target);
     });
 
-    // Listen to custom minimize event from HiFiTileBar
+    // Listen to minimize action from HiFiTileBar
     window.addEventListener("hifi-tile-minimized", event => {
       const tab = event.detail?.tab;
       if (tab) {
@@ -139,13 +165,13 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
       } catch (e) {}
       this.#tabToSnapshotUrl.delete(tab);
     }
+    this.#triggerAutoTileDebounced();
   }
 
   #renderAllCards() {
     if (!this.#trackElement || !window.gBrowser) return;
-    this.#trackElement.innerHTML = "";
     for (const tab of window.gBrowser.tabs) {
-      if (!tab.hidden) {
+      if (!tab.hidden && !this.#tabToCard.has(tab)) {
         this.#createCardForTab(tab);
       }
     }
@@ -202,11 +228,13 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
     const footer = document.createElement("div");
     footer.classList.add("hifi-shelf-card-footer");
 
-    const icon = document.createXULElement("image");
+    const icon = document.createElement("img");
     icon.classList.add("hifi-shelf-card-icon");
     const favSrc = tab.getAttribute("image");
     if (favSrc) {
       icon.setAttribute("src", favSrc);
+    } else {
+      icon.src = "chrome://global/skin/icons/defaultFavicon.svg";
     }
     footer.appendChild(icon);
 
@@ -225,8 +253,9 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
     this.#trackElement.appendChild(card);
     this.#tabToCard.set(tab, card);
 
-    // Capture initial snapshot once the browser finishes loading
+    // Capture initial snapshot
     if (tab.linkedBrowser) {
+      setTimeout(() => this.#captureSnapshot(tab), 400);
       tab.linkedBrowser.addEventListener(
         "load",
         () => {
@@ -239,7 +268,10 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
 
   #updateCard(tab) {
     const card = this.#tabToCard.get(tab);
-    if (!card) return;
+    if (!card) {
+      this.#createCardForTab(tab);
+      return;
+    }
 
     const titleEl = card.querySelector(".hifi-shelf-card-title");
     if (titleEl) {
@@ -253,8 +285,6 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
       if (fav) {
         iconEl.setAttribute("src", fav);
         iconEl.style.display = "";
-      } else {
-        iconEl.style.display = "none";
       }
     }
 
@@ -359,7 +389,7 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
         }
       }
     } catch (e) {
-      // Ignore background/cross-origin canvas capture limitations
+      // Ignore background snapshot warnings
     } finally {
       this.#capturingTabs.delete(tab);
     }
@@ -368,11 +398,11 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
   #triggerAutoTileDebounced() {
     clearTimeout(this.#autoTileTimeout);
     this.#autoTileTimeout = setTimeout(() => {
-      this.#checkAutoTile();
-    }, 250);
+      this.checkAutoTile();
+    }, 200);
   }
 
-  #checkAutoTile() {
+  checkAutoTile() {
     if (!Services.prefs.getBoolPref("hifi.tiles.auto-tile", true)) {
       return;
     }
@@ -386,15 +416,19 @@ class HiFiTileShelf extends nsZenDOMOperatedFeature {
 
     const anySplit = visibleTabs.some(t => t.splitView);
     if (!anySplit) {
-      window.gZenViewSplitter.splitTabs(visibleTabs.slice(0, 4), "grid");
+      // Auto-split all visible tabs side-by-side or grid
+      window.gZenViewSplitter.splitTabs(
+        visibleTabs.slice(0, 4),
+        visibleTabs.length === 2 ? "vsep" : "grid"
+      );
     } else if (window.gZenViewSplitter.currentView >= 0) {
       const currentGroup = window.gZenViewSplitter._data[window.gZenViewSplitter.currentView];
       if (currentGroup && currentGroup.tabs.length < 4) {
-        const unspiltTab = visibleTabs.find(t => !currentGroup.tabs.includes(t));
-        if (unspiltTab) {
+        const unsplitTab = visibleTabs.find(t => !currentGroup.tabs.includes(t));
+        if (unsplitTab) {
           window.gZenViewSplitter.splitTabs(
-            [...currentGroup.tabs, unspiltTab],
-            currentGroup.gridType || "grid"
+            [...currentGroup.tabs, unsplitTab],
+            currentGroup.tabs.length >= 2 ? "grid" : "vsep"
           );
         }
       }

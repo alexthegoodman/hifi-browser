@@ -667,3 +667,186 @@ zen-split-fake-tab {
 :root[hifi-tiles-active="true"] #vertical-tabs {
   display: none !important;
 }
+
+
+/* ==========================================================================
+   Ubuntu-Style Bookmark Sidebar & Layout Dropdown
+   ========================================================================== */
+
+/* Completely hide legacy tab sidebar and vertical tabs */
+#sidebar-container,
+#vertical-tabs,
+#sidebar-launcher-splitter {
+  display: none !important;
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  visibility: hidden !important;
+}
+
+#hifi-ubuntu-dock {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 52px !important;
+  min-width: 52px !important;
+  max-width: 52px !important;
+  height: 100% !important;
+  box-sizing: border-box !important;
+  padding: 8px 4px !important;
+  background-color: light-dark(rgba(240, 240, 246, 0.96), rgba(18, 18, 22, 0.98)) !important;
+  backdrop-filter: blur(24px) !important;
+  border-right: 1px solid light-dark(rgba(0, 0, 0, 0.12), rgba(255, 255, 255, 0.1)) !important;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.08) !important;
+  z-index: 99 !important;
+  user-select: none !important;
+}
+
+.hifi-dock-top {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  width: 100% !important;
+  padding-bottom: 8px !important;
+  border-bottom: 1px solid light-dark(rgba(0, 0, 0, 0.08), rgba(255, 255, 255, 0.08)) !important;
+}
+
+.hifi-dock-items {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  gap: 8px !important;
+  padding: 8px 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  scrollbar-width: none !important;
+}
+
+.hifi-dock-bottom {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  width: 100% !important;
+  gap: 6px !important;
+  padding-top: 8px !important;
+  border-top: 1px solid light-dark(rgba(0, 0, 0, 0.08), rgba(255, 255, 255, 0.08)) !important;
+}
+
+.hifi-dock-item {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 10px !important;
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  cursor: pointer !important;
+  color: light-dark(#2c2c2e, #f2f2f7) !important;
+  transition: background-color 0.15s ease, transform 0.12s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.15s ease !important;
+  box-sizing: border-box !important;
+  padding: 0 !important;
+}
+
+.hifi-dock-item:hover {
+  background-color: light-dark(rgba(0, 0, 0, 0.08), rgba(255, 255, 255, 0.12)) !important;
+  transform: scale(1.08) !important;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12) !important;
+}
+
+.hifi-dock-item:active {
+  transform: scale(0.96) !important;
+}
+
+.hifi-dock-icon {
+  width: 22px !important;
+  height: 22px !important;
+  border-radius: 4px !important;
+  pointer-events: none !important;
+}
+
+/* Ubuntu Orange Running Pip */
+.hifi-dock-pip {
+  position: absolute !important;
+  left: -2px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  width: 3.5px !important;
+  height: 14px !important;
+  border-radius: 2px !important;
+  background-color: #e95420 !important;
+  display: none !important;
+  box-shadow: 0 0 6px rgba(233, 84, 32, 0.6) !important;
+}
+
+.hifi-dock-item.is-open .hifi-dock-pip {
+  display: block !important;
+}
+
+/* Layout Dropdown */
+.hifi-layout-dropdown {
+  position: fixed !important;
+  flex-direction: column !important;
+  background-color: light-dark(rgba(246, 246, 250, 0.98), rgba(28, 28, 34, 0.98)) !important;
+  backdrop-filter: blur(28px) !important;
+  border: 1px solid light-dark(rgba(0, 0, 0, 0.14), rgba(255, 255, 255, 0.14)) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22) !important;
+  z-index: 1000 !important;
+  min-width: 200px !important;
+  padding: 6px !important;
+  gap: 3px !important;
+  user-select: none !important;
+  animation: hifi-pop-in 0.12s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+}
+
+@keyframes hifi-pop-in {
+  from { opacity: 0; transform: scale(0.95) translateX(-4px); }
+  to { opacity: 1; transform: scale(1) translateX(0); }
+}
+
+.hifi-layout-dropdown-header {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.8px !important;
+  padding: 5px 8px !important;
+  color: light-dark(#6e6e73, #8e8e93) !important;
+  border-bottom: 1px solid light-dark(rgba(0, 0, 0, 0.08), rgba(255, 255, 255, 0.08)) !important;
+  margin-bottom: 3px !important;
+}
+
+.hifi-layout-option {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 7px 10px !important;
+  border-radius: 6px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: light-dark(#1c1c1f, #f2f2f7) !important;
+  cursor: pointer !important;
+  transition: background-color 0.12s ease !important;
+}
+
+.hifi-layout-option:hover {
+  background-color: light-dark(rgba(0, 0, 0, 0.08), rgba(255, 255, 255, 0.14)) !important;
+}
+
+.hifi-layout-icon {
+  font-size: 14px !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+/* Ensure SVG in buttons always render crisply */
+.hifi-tile-btn svg,
+.hifi-shelf-action-btn svg,
+.hifi-dock-item svg {
+  display: block !important;
+  pointer-events: none !important;
+}
