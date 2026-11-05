@@ -142,14 +142,26 @@ export class HiFiTileBar {
       muteBtn.setAttribute("title", isMuted ? "Unmute Audio" : "Mute Audio");
     };
 
-    // Initialize state
+    // Tabs outlive their headers (one is built on every re-split), so tie the
+    // listeners to the header and drop them in HiFiTileBar.destroy().
+    const listeners = new AbortController();
+    headerWrapper._hifiCleanup = () => listeners.abort();
     const initialTab = getTab();
     if (initialTab) {
-      initialTab.addEventListener("TabAttrModified", updateState);
+      initialTab.addEventListener("TabAttrModified", updateState, {
+        signal: listeners.signal,
+      });
       updateState();
     } else {
       setTimeout(updateState, 150);
     }
+
+    // Double-clicking the bar toggles tile fullscreen, like a window title bar
+    bar.addEventListener("dblclick", event => {
+      if (!event.target.closest(".hifi-tile-btn")) {
+        fsBtn.click();
+      }
+    });
 
     // Button event listeners
     muteBtn.addEventListener("click", event => {
@@ -200,5 +212,20 @@ export class HiFiTileBar {
     });
 
     return headerWrapper;
+  }
+
+  /**
+   * Tears down a header created by create() and leaves its container in its
+   * normal (non-fullscreen) state.
+   * @param {Element} headerWrapper
+   */
+  static destroy(headerWrapper) {
+    headerWrapper._hifiCleanup?.();
+    const container = headerWrapper.closest(".browserSidebarContainer");
+    if (container?.classList.contains("hifi-tile-fullscreen")) {
+      container.classList.remove("hifi-tile-fullscreen");
+      window.dispatchEvent(new Event("resize"));
+    }
+    headerWrapper.remove();
   }
 }

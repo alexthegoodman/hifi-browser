@@ -28,3 +28,6 @@
 
 - name: hifi.tiles.shelf.enabled
   value: true
+
+- name: hifi.tiles.layout
+  value: "auto"

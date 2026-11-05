@@ -1711,7 +1711,7 @@ class nsZenViewSplitter extends nsZenDOMOperatedFeature {
       ".zen-view-splitter-header-container, .hifi-tile-bar-container"
     );
     if (header) {
-      header.remove();
+      HiFiTileBar.destroy(header);
     }
   }
 
